@@ -3,11 +3,21 @@
         <meta charset="UTF-8">
         <title>Тестова сторiнка</title>
         <script data-consolejs-channel="8e539209-1d11-18b6-75a4-dc1309d43dd6" src="https://remotejs.com/agent/agent.js"></script>
+        <script type="importmap">
+        {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.183.1/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.1/examples/jsm/"
+        }
+        }
+        </script>
     </head>
     <body>
-        Тестова сторiнка?
+<!--        Тестова сторiнка?
         <script>
             console.log("Повiдомлення2");
         </script>
+-->
+        <script src="./main.js" type="module"></script>
     </body>
 </html>
