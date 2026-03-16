@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {MindARThree} from 'mindar-image-three';
 
 let isStarted = false;
@@ -63,9 +64,33 @@ document.addEventListener("DOMContentLoaded", () => {
         // --- Second anchor (iodomarine marker, target index 1) ---
         const anchor2 = mindarThree.addAnchor(1);
 
-        // TODO: Add your 3D models for the second marker here.
-        // Example geometries to consider: TorusGeometry, ConeGeometry, SphereGeometry, TorusKnotGeometry
-        // Add meshes to anchor2.group.add(mesh) so they appear on the iodomarine marker.
+        // Teacup GLB model (CC-BY 3.0, Zsky via Poly Pizza)
+        const gltfLoader = new GLTFLoader();
+        gltfLoader.load("../assets/teacup.glb", (gltf) => {
+            const teacup = gltf.scene;
+            teacup.scale.set(0.5, 0.5, 0.5);
+            teacup.position.set(0, -0.3, 0);
+            anchor2.group.add(teacup);
+        });
+
+        // Saucer — flat torus under the cup
+        const saucer = new THREE.Mesh(
+            new THREE.TorusGeometry(0.6, 0.08, 8, 32),
+            new THREE.MeshBasicMaterial({color: 0xf5f5dc})
+        );
+        saucer.rotation.x = -Math.PI / 2;
+        saucer.position.set(0, -0.5, 0);
+        anchor2.group.add(saucer);
+
+        // Steam — three translucent rising spheres
+        const steamMaterial = new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.3});
+        const steam1 = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), steamMaterial);
+        const steam2 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), steamMaterial.clone());
+        const steam3 = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), steamMaterial.clone());
+        steam1.position.set(-0.05, 0.3, 0);
+        steam2.position.set(0.05, 0.5, 0);
+        steam3.position.set(0, 0.7, 0);
+        anchor2.group.add(steam1, steam2, steam3);
 
         // Custom scanning overlay centered in #win2
         const scanOverlay = document.createElement("div");
@@ -101,6 +126,15 @@ document.addEventListener("DOMContentLoaded", () => {
                         0.5*Math.sin(time/1000) + 0.5);
 
             circle.position.z = -(2*Math.sin(time/1000)+2);
+
+            // Anchor2: steam rising animation
+            steam1.position.y = 0.3 + 0.2 * Math.sin(time / 800);
+            steam2.position.y = 0.5 + 0.2 * Math.sin(time / 900 + 1);
+            steam3.position.y = 0.7 + 0.2 * Math.sin(time / 700 + 2);
+            steam1.material.opacity = 0.15 + 0.15 * Math.sin(time / 600);
+            steam2.material.opacity = 0.15 + 0.15 * Math.sin(time / 700 + 1);
+            steam3.material.opacity = 0.15 + 0.15 * Math.sin(time / 500 + 2);
+            saucer.rotation.z = time / 3000;
 
             renderer.render(scene, camera);
         });
