@@ -1,0 +1,6 @@
+[    1304ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://i.imgur.com/fU8O0Wl.png:0
+[    2615ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:5500/favicon.ico:0
+[   17871ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://i.imgur.com/fU8O0Wl.png:0
+[  225527ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://i.imgur.com/fU8O0Wl.png:0
+[  230441ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://i.imgur.com/fU8O0Wl.png:0
+[  236818ms] [ERROR] Failed to load resource: the server responded with a status of 403 () @ https://i.imgur.com/fU8O0Wl.png:0
