@@ -2,15 +2,6 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {MindARThree} from 'mindar-image-three';
 
-const loadAudio = (path) => {
-    return new Promise((resolve, reject) => {
-        const loader = new THREE.AudioLoader();
-        loader.load(path, (buffer) => {
-            resolve(buffer);
-        });
-    });
-}
-
 let isStarted = false;
 let mindarThree = null;
 let renderer = null;
@@ -90,33 +81,63 @@ document.addEventListener("DOMContentLoaded", () => {
             console.log("Model 2 loaded and added to anchor 2", gltf);
         });
 
-        /*
-        loadAudio("../assets/teacup_sound.mp3").then((buffer) => {
-            const listener = new THREE.AudioListener();
-            camera.add(listener);
-
-            const sound1 = new THREE.PositionalAudio(listener);
-            sound1.setBuffer(buffer);
-            sound1.setRefDistance(0.5);
-            sound1.setLoop(true);
-            sound1.play();
-            anchor1.group.add(sound1);
-
-            const sound2 = new THREE.PositionalAudio(listener);
-            sound2.setBuffer(buffer);
-            sound2.setRefDistance(0.5);
-            sound2.setLoop(true);
-            sound2.play();
-            anchor2.group.add(sound2);
-        });
-        */
-       
-        // Hide overlay when any target is found
+        // --- Hide overlay when any target is found ---
         const removeScanOverlay = () => {
             if (scanOverlay.parentNode) scanOverlay.parentNode.removeChild(scanOverlay);
         };
-        anchor1.onTargetFound = removeScanOverlay;
-        anchor2.onTargetFound = removeScanOverlay;
+
+        // --- Spatial Audio Setup ---
+        // AudioListener acts as the "ears" - must be attached to camera
+        const listener = new THREE.AudioListener();
+        camera.add(listener);
+
+        // Resume AudioContext on first user interaction (browser autoplay policy)
+        const resumeAudio = () => {
+            if (listener.context.state === 'suspended') {
+                listener.context.resume();
+            }
+        };
+
+        // Load different sounds for each marker
+        const audioLoader = new THREE.AudioLoader();
+
+        // Sound for anchor1 (phoenix bird) - bird call
+        audioLoader.load("../assets/bird.mp3", (buffer) => {
+            const sound1 = new THREE.PositionalAudio(listener);
+            sound1.setBuffer(buffer);
+            sound1.setRefDistance(0.5);  // Distance at which volume is 100%
+            sound1.setLoop(true);
+            sound1.setVolume(0.8);
+            anchor1.group.add(sound1);
+            // Play only when target found
+            anchor1.onTargetFound = () => {
+                removeScanOverlay();
+                resumeAudio();
+                sound1.play();
+            };
+            anchor1.onTargetLost = () => {
+                sound1.pause();
+            };
+        });
+
+        // Sound for anchor2 (terrarium) - ambient magical
+        audioLoader.load("../assets/ambient.mp3", (buffer) => {
+            const sound2 = new THREE.PositionalAudio(listener);
+            sound2.setBuffer(buffer);
+            sound2.setRefDistance(0.3);
+            sound2.setLoop(true);
+            sound2.setVolume(0.6);
+            anchor2.group.add(sound2);
+            // Play only when target found
+            anchor2.onTargetFound = () => {
+                removeScanOverlay();
+                resumeAudio();
+                sound2.play();
+            };
+            anchor2.onTargetLost = () => {
+                sound2.pause();
+            };
+        });
 
         await mindarThree.start();
 
