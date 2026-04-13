@@ -1,6 +1,15 @@
+/**
+ * Використовуючи матеріал тижня, створіть два власні маркери та прив'яжіть до першого довільне відео 
+ * з YouTube про океан, а до другого - довільне відео з Vimeo.  
+ * 
+ * YouTube: https://www.youtube.com/watch?v=qP-7GNoDJ5c
+ * Vimeo: https://vimeo.com/498962326
+  **/
+
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {MindARThree} from 'mindar-image-three';
+import {CSS3DObject} from 'three/addons/renderers/CSS3DRenderer.js';
 
 const loadVideo = (path) => {
     return new Promise((resolve, reject) => {
@@ -30,32 +39,29 @@ document.addEventListener("DOMContentLoaded", () => {
             uiLoading: "yes",
         });
 
-        const {scene, camera, renderer} = mindarThree;
+        const {scene, cssScene, camera, renderer, cssRenderer} = mindarThree;
 
         var light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
         scene.add(light);
 
-        // --- First anchor (cup marker, target index 0) ---
-        const anchor1 = mindarThree.addAnchor(0);
+        const obj = new CSS3DObject(document.querySelector("#ar-div"));
+        const anchor1 = mindarThree.addCSSAnchor(0);
+        anchor1.group.add(obj);
 
-        const video = await loadVideo("../assets/Nathan Evans - Wellerman (Sea Shanty).mp4");
-        console.log("Video loaded", video);
+        var iframe = document.querySelector('iframe');
+        var player = new Vimeo.Player(iframe);
 
-        const texture = new THREE.VideoTexture(video);
-        // 856:313 - співвідношення сторін відео, тому 856/856:313/856 
-        //const geometry = new THREE.PlaneGeometry(1, video.height/video.width);
-        const geometry = new THREE.PlaneGeometry(1, 312/856);
-        const material = new THREE.MeshBasicMaterial({map: texture});
-        //const material = new THREE.MeshBasicMaterial();
-        const plane = new THREE.Mesh(geometry, material);
-        //plane.rotation.x = -Math.PI / 2; // Rotate to lie flat on the marker
-        anchor1.group.add(plane);
+        player.on('play', function() {
+            console.log('Played the video');
+        });
+
+        //player.setVolume(0);
 
         anchor1.onTargetFound = () => {
-            video.play();
+            player.play();
         }
         anchor1.onTargetLost = () => {
-            video.pause();
+            player.pause();
         }
 
         /*
@@ -94,14 +100,16 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
+
         await mindarThree.start();
 
         renderer.setAnimationLoop(( time ) => {
             renderer.render(scene, camera);
+            cssRenderer.render(cssScene, camera);
         });
     }
 
-    //start();
+    start();
     const startButton = document.createElement("button");
     startButton.textContent = "Будь-ласка, дозвольте скористатись камерою";
     startButton.addEventListener("click", () => {

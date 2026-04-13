@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-WebAR educational project using **Three.js** (3D rendering) and **MindAR** (image-target AR tracking). Weekly assignments build progressively: basic 3D scene → AR with markers → textured geometries → UI-controlled AR.
+WebAR educational project using **Three.js** (3D rendering) and **MindAR** (image-target AR tracking). Weekly assignments build progressively: basic 3D scene → AR with markers → textured geometries → UI-controlled AR with start/stop → animated GLB models with spatial audio.
 
 ## Architecture
 
@@ -12,13 +12,15 @@ WebAR educational project using **Three.js** (3D rendering) and **MindAR** (imag
 - **No package manager** — libraries are vendored in `lib/` or loaded from CDN
 - Each `weekN/` folder is a self-contained assignment with `test.html` (entry) + `main.js` (logic)
 - `index.html` — landing page linking to all weekly assignments
-- `assets/` — images (PNG/JPG) and `.mind` files (MindAR compiled image targets)
+- `assets/` — images (PNG/JPG), `.mind` files (MindAR compiled image targets), `.glb` 3D models, `.mp3` audio, `.mp4` video
+- `materials/` — course PDFs (in Ukrainian)
 
 ## Module Resolution
 
-Week 1 uses CDN Three.js (v0.183.1). Weeks 2+ use local vendored libraries:
+Week 1 uses CDN Three.js (v0.183.1) with no MindAR. Weeks 2+ use local vendored libraries:
 - `three` → `lib/three/three_151.module.js` (Three.js v0.151)
 - `mindar-image-three` → `lib/mindar/mindar-image-three.prod.js`
+- `three/addons/` → CDN (e.g., `three/addons/loaders/GLTFLoader.js`)
 
 Import maps are defined per-page in `test.html` — there is no shared config.
 
@@ -32,12 +34,87 @@ npx serve .
 ```
 Then open `http://localhost:8000/weekN/test.html` for each assignment.
 
+## Weekly Progression
+
+| Week | Focus | Key Feature |
+|------|-------|-------------|
+| 1 | Basic Three.js scene | Rotating cube + camera feed, no AR |
+| 2 | First MindAR | Single/multi-anchor AR with colored cubes |
+| 3 | Textured geometries | Multi-face textured cube, capsule, circle on anchor |
+| 4 | UI-controlled AR + start/stop | Split-pane layout, custom scan overlay, GLB model loading, start/stop button |
+| 5 | Animated models + spatial audio | GLTFLoader + AnimationMixer, PositionalAudio, target found/lost events |
+| 6 | Video texture on marker | VideoTexture on anchor, raycaster click interaction |
+
 ## Key Patterns
 
-- MindAR initialization: `new MindARThree({container, imageTargetSrc})` → destructure `{renderer, scene, camera}` → add anchors → call `mindarThree.start()`
-- Anchors bind 3D objects to tracked image targets: `mindarThree.addAnchor(index)` → `anchor.group.add(mesh)`
-- Animation uses `renderer.setAnimationLoop()` callback
-- `.mind` files are pre-compiled from reference images using the MindAR compiler tool
+### MindAR Initialization
+```js
+const mindarThree = new MindARThree({
+    container: document.body,         // or a specific DOM element
+    imageTargetSrc: "../assets/foo.mind",
+    maxTrack: 2,                       // number of simultaneous targets (default 1)
+    uiScanning: "yes",                 // or "no" for custom overlays
+    uiLoading: "yes",
+});
+const {renderer, scene, camera} = mindarThree;
+```
+
+### Anchors and Target Events
+```js
+const anchor = mindarThree.addAnchor(index);  // index matches .mind file order
+anchor.group.add(mesh);                        // add 3D objects to anchor
+anchor.onTargetFound = () => { /* play audio, hide overlay */ };
+anchor.onTargetLost = () => { /* pause audio */ };
+```
+
+### Animation Loop
+```js
+await mindarThree.start();
+renderer.setAnimationLoop((time) => {
+    // update animations, positions, materials
+    renderer.render(scene, camera);
+});
+```
+
+### Start/Stop Lifecycle (weeks 4+)
+Weeks 4-5 use a toggle button. The `stop()` function must clean up:
+- `renderer.setAnimationLoop(null)` — stop rendering
+- `mindarThree.stop()` — stop AR tracking
+- Stop camera video tracks and remove DOM elements
+- Null out references (`mindarThree = null`, `renderer = null`)
+
+### GLB Model Loading with AnimationMixer (week 5)
+```js
+const gltfLoader = new GLTFLoader();
+const mixer = new THREE.AnimationMixer(gltf.scene);
+const action = mixer.clipAction(gltf.animations[0]);
+action.play();
+// In animation loop: mixer.update(delta);
+const clock = new THREE.Clock();
+// delta = clock.getDelta()
+```
+
+### Spatial Audio (week 5)
+```js
+const listener = new THREE.AudioListener();
+camera.add(listener);
+const audioLoader = new THREE.AudioLoader();
+audioLoader.load("sound.mp3", (buffer) => {
+    const sound = new THREE.PositionalAudio(listener);
+    sound.setBuffer(buffer);
+    sound.setRefDistance(0.5);
+    sound.setLoop(true);
+    anchor.group.add(sound);  // attach to anchor for spatial positioning
+});
+```
+Resume `AudioContext` on user interaction (browser autoplay policy):
+```js
+if (listener.context.state === 'suspended') listener.context.resume();
+```
+
+### Split-Pane UI (weeks 4-5)
+HTML: `#win1` (left: description + button + marker images) + `#win2` (right: AR container).
+Custom scan overlay with marker images that fades when a target is found.
 
 ## Language
 
