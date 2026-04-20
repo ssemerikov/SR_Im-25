@@ -25,6 +25,38 @@ const loadVideo = (path) => {
     });
 }
 
+function getVideoId(url) {
+    const urltypes = [
+        /https?:\/\/youtu\.be\/(.+)/,
+        /https?:\/\/.*youtube.*v=(.+)/
+    ];
+    for (const type of urltypes) {
+        const match = url.match(type);
+        if (match) return match[1];
+    }
+    return url;
+}
+
+const createYoutube = (url) => {
+    return new Promise((resolve, reject) => {
+        var tag = document.createElement("script");
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName("script")[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        window.onYouTubeIframeAPIReady = () => {
+            const player = new YT.Player("player", {
+                videoId: getVideoId(url),
+                events: {
+                    onReady: () => {
+                        resolve(player);
+                    }
+                }
+            });
+        };
+    });
+};
+
 document.addEventListener("DOMContentLoaded", () => {
 
     const start = async() => {
@@ -41,14 +73,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const {scene, cssScene, camera, renderer, cssRenderer} = mindarThree;
 
-        var light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-        scene.add(light);
-
         const obj = new CSS3DObject(document.querySelector("#ar-div"));
         const anchor1 = mindarThree.addCSSAnchor(0);
         anchor1.group.add(obj);
-
         var iframe = document.querySelector('iframe');
+
         var player = new Vimeo.Player(iframe);
 
         player.on('play', function() {
@@ -71,35 +100,19 @@ document.addEventListener("DOMContentLoaded", () => {
         */
 
         // --- Second anchor (iodomarine marker, target index 1) ---
-        const anchor2 = mindarThree.addAnchor(1);
+        const anchor2 = mindarThree.addCSSAnchor(1);
 
-        const gltfLoader = new GLTFLoader();
+        const obj2 = new CSS3DObject(document.querySelector("#ar-div2"));
+        anchor2.group.add(obj2);
 
-        let model = null;
-                
-        gltfLoader.load("../assets/sea_ship.glb", (gltf) => {
-            model = gltf.scene;
-            model.scale.set(0.1, 0.1, 0.1);
-            model.position.set(0, 0, 0);
-            model.rotation.set(0, -Math.PI / 2, 0); // Rotate model to stand upright
-            anchor2.group.add(model);
-            console.log("Model loaded and added to anchor 2", gltf);
-        });
+        const player2 = await createYoutube("https://www.youtube.com/watch?v=qP-7GNoDJ5c");
 
-        document.body.addEventListener("click", (e) => {
-            if (!model) return;
-            const mouseX = ( e.clientX / window.innerWidth ) * 2 - 1;
-            const mouseY = - ( e.clientY / window.innerHeight ) * 2 + 1;
-            const mouse = new THREE.Vector2(mouseX, mouseY);
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects([model], true);
-            if (intersects.length > 0) {
-                model.rotation.z += (Math.random() * 45 + 45) * Math.PI / 180;
-                console.log("Model clicked, new z rotation:", model.rotation.z);
-            }
-        });
-
+        anchor2.onTargetFound = () => {
+            player2.playVideo();
+        };
+        anchor2.onTargetLost = () => {
+            player2.pauseVideo();
+        };
 
         await mindarThree.start();
 
@@ -109,7 +122,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    start();
     const startButton = document.createElement("button");
     startButton.textContent = "Будь-ласка, дозвольте скористатись камерою";
     startButton.addEventListener("click", () => {
