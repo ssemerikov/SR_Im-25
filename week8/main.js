@@ -19,6 +19,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const {scene, camera, renderer} = mindarThree;
 
+
+
         const geometry = new THREE.SphereGeometry(0.01, 32, 16);
         const material = new THREE.MeshBasicMaterial({color: 0x0000ff,
         transparent: true, opacity: 0.5});
@@ -41,9 +43,26 @@ document.addEventListener("DOMContentLoaded", () => {
         
         await mindarThree.start();
 
+        //const video = document.querySelector("video");
+        //video.style.visibility = "hidden";
+
+
         renderer.setAnimationLoop(( time ) => {
             renderer.render(scene, camera);
         });
+    }
+
+    window.flipflop = () => {
+        const video = document.querySelector("video");
+        const button = document.querySelector("#flipflop");
+
+        if (video.style.visibility === "hidden") {
+            video.style.visibility = "visible";
+            button.innerHTML = "Перейти до віртуальної реальності";
+        } else {
+            video.style.visibility = "hidden";
+            button.innerHTML = "Перейти до доповненої реальності";
+        }
     }
 
     /*
@@ -51,7 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
     startButton.textContent = "Будь-ласка, дозвольте скористатись камерою";
     startButton.addEventListener("click", () => {
     */
-        start();
+    start();
     //    startButton.style.display = "none";
     //});
     //document.body.appendChild(startButton);

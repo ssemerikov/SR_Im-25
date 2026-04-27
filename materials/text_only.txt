@@ -39,7 +39,16 @@
 81
 84
 87
-94Вступ
+94
+106
+4 Відстеження обличчя
+4.1 Опорні точки обличчя . . . . . . . . . . . . . . . . . . . . . . 106
+4.2 Проблема оклюзії . . . . . . . . . . . . . . . . . . . . . . . . . 109
+4.3 Накладання маски на обличчя . . . . . . . . . . . . . . . . . 112
+4.4 Перемикання камери . . . . . . . . . . . . . . . . . . . . . . . 116
+4.5 Захоплення кадрів . . . . . . . . . . . . . . . . . . . . . . . . 118
+4.6 Застосування Web Share API на мобільних пристроях . . . . 122
+4.7 Приклад: примірка віртуальних аксесуарів . . . . . . . . . . 127Вступ
 Розробка веб-додатків доповненої реальності (WebAR) відрізняється від
 інших способів розробки тим, що є крос-платформовою і не вимагає вста-
 новлення розроблених додатків, адже це просто звичайні веб-сторінки.
@@ -77,7 +86,7 @@ org/).
 Посібник із курсу структурований у такий спосіб:
 2Розділ 1 допоможе налаштувати середовище розробки.
 Розділ 2 є оглядом фундаментальних концепцій WebAR.
-Розділи 3, ?? та ?? є основними для набуття досвіду розробки WebAR
+Розділи 3, 4 та ?? є основними для набуття досвіду розробки WebAR
 додатків з використанням MindAR та three.js.
 У розділі ?? обговорюється інтеграція AR з моделями машинного на-
 вчання TensorFlow.js.
@@ -2627,4 +2636,874 @@ cssRenderer.render(cssScene, camera);
 }
 start();
 });
-105
+1054Відстеження обличчя
+4.1Опорні точки обличчя
+Бібліотека MindAR має два основні набори модулів – для роботи з зо-
+браженнями (image) та для роботи з обличчями (face), – що можуть ви-
+користовуватись одночасно, але потребують окремого підключення у до-
+кументі HTML:
+<html>
+<head>
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+<script src=
+"https://cdn.jsdelivr.net/npm/mind-ar/dist/mindar-face-three.prod.js"
+></script>
+<script type="importmap">
+{
+"imports": {
+"three": "https://unpkg.com/three/build/three.module.js"
+}
+}
+<script src="./main.js"></script>
+<style>
+html, body {position: relative; margin: 0;
+width: 100%; height: 100%; overflow: hidden}
+</style>
+</head>
+<body>
+</body>
+</html>
+Схожість API для відстеження зображень і відстеження облич
+чітко простежується у коді main.js. Так, спочатку у аналогічний
+спосіб відбувається створення посилання на об’єкти Three.js, але не з
+window.MINDAR.IMAGE.THREE, а з window.MINDAR.FACE.THREE:
+106const THREE = window.MINDAR.FACE.THREE;
+Так само всі дії виконуються у функції start, що виключається
+після завантаження документу HTML. Відмінність полягає у застосуванні
+конструктора класу MindARThree з window.MINDAR.FACE.THREE замість
+window.MINDAR.IMAGE. Через те, що бібліотека розпізнає обличчя, пара-
+метр imageTargetSrc для цього конструктора не потрібен:
+document.addEventListener(’DOMContentLoaded’, () => {
+const start = async() => {
+const mindarThree = new window.MINDAR.FACE.MindARThree({
+container: document.body,
+});
+Для створення об’єктів Three.js застосовуються властивості об’єкта
+mindarThree: рендерер, сцена, камера:
+const {renderer, scene, camera} = mindarThree;
+Створимо якір та прив’яжемо до нього напівпрозору сферу:
+const geometry = new THREE.SphereGeometry(0.1, 32, 16);
+const material = new THREE.MeshBasicMaterial({color: 0x00ffff,
+transparent: true, opacity: 0.5});
+const sphere = new THREE.Mesh(geometry, material);
+const anchor = mindarThree.addAnchor(1);
+anchor.group.add(sphere);
+await mindarThree.start();
+renderer.setAnimationLoop(() => {
+renderer.render(scene, camera);
+});
+}
+start();
+});
+107Попри схожість, метод addAnchor по-іншому трактує параметр: якщо
+для window.MINDAR.IMAGE це був номер цільового зображення, то при
+розпізнаванні облич це буде номер опорної точки обличчя. Точка 1 – це
+ніс (рис. 4.1).
+Рис. 4.1. Прив’язування об’єкту до опорної точки обличчя.
+Виявлення опорних точок обличчя базується на відомій моделі
+бібліотеки TensorFlow (https://github.com/tensorflow/tfjs-models/
+tree/master/face-landmarks-detection).
+Модель
+MediaPipe
+Face
+Mesh
+(https://google.github.io/
+mediapipe/solutions/models.html) є згортковою нейронною ме-
+режею, що визначає на обличчі 468 тривимірних опорних то-
+чок
+(https://github.com/tensorflow/tfjs-models/raw/master/
+face-landmarks-detection/mesh_map.jpg), і ми можемо прив’язувати
+об’єкти до будь-якої з них (рис. 4.2).
+108Рис. 4.2. Опорні точки обличчя (фрагмент).
+4.2
+Проблема оклюзії
+Спробуємо надіти обличчя окуляри, для чого застосує-
+мо їх довільну модель у форматі GLTF (наприклад, https:
+//www.cgtrader.com/free-3d-print-models/fashion/glasses/
+3d-oval-glasses-3d-print-model). Для цього скористаємось раніше
+створеною бібліотекою завантажувачів loader.js:
+import {loadGLTF} from "./loader.js";
+Для освітлення моделі застосуємо напівсферичне джерело світла:
+const light = new THREE.HemisphereLight( 0xffffff, 0xbbbbff, 1 );
+scene.add(light);
+Моделі у форматі GLTF можуть зберігатися як у вигляді множині
+файлів опису та текстур, так й одному бінарному файлі із розширенням
+.glb
+const glasses = await loadGLTF("glasses.glb");
+109Масштабування моделі виконано під розмір обличчя:
+glasses.scene.scale.set(0.22, 0.22, 0.22);
+Модель прив’язано до перенісся (точка 168 між очима, рис. 4.3):
+const anchor = mindarThree.addAnchor(168);
+anchor.group.add(glasses.scene);
+Рис. 4.3. Модель окулярів, прив’язана до перенісся.
+Праворуч на рис. 4.3 продемонстровано, що дужка окулярів знаходи-
+ться не на місці, а самі окуляри розташовані досить далеко від обличчя. На-
+магання їх змістити за віссю z призведе до корекції віддалення від обличчя,
+проте ефект того, що дужка рухається по ньому, залишається:
+glasses.scene.position.set(0, -0.12, -0.70);
+Оклюзія – ситуація, в якій два об’єкти розташовані приблизно на одній
+лінії і один об’єкт, розташований ближче до віртуальної камери або вікна
+перегляду, частково або повністю закриває видимість іншого об’єкта. Для
+подолання цієї проблеми у графічному конвеєрі використовується “оклю-
+зивне обрізання” для видалення прихованих поверхонь перш, ніж до них
+почнуть застосовуватися растеризація і шейдери.
+Доповнена реальність створюється накладанням полотна поверх відео
+з веб-камери. Це означає, що все, що рендериться на верхньому полотні,
+буде приховувати нижній шар відео, тому, хоча інтуїтивно голова мала б
+приховати дужку окулярів, цього не відбулося.Iдея оклюзивного обрізання полягає в тому, що на 3D сцені створюються
+об’єкти, які нагадують фізичні об’єкти, які ми хочемо використовувати,
+щоб приховати що-небудь за ними – оклюдери.
+У даному прикладі фізичним об’єктом є голова, тому оклюдером має
+бути віртуальна голова на полотні: тієї ж форми, що й реальна, але при
+цьому невидима. Незважаючи на невидимість, вона повинна, однак, ще
+мати можливість приховувати об’єкти, які знаходяться за нею.
+У документації до Meta Spark Studio https://sparkar.facebook.com/
+ar-studio/learn/articles/people-tracking/face-reference-assets є
+посилання на модель голови у форматах DAE та OBJ – останній можна
+конвертувати у формат GLTF, наприклад, онлайн-конвертором (https://
+products.aspose.app/3d/conversion/obj-to-glb). У форматі GLTF мо-
+жна знайти іншу модель голови від 8th Walls (https://8thwall.8thwall.
+app/face-effects-physics/assets/head-occluder-1-8ns1sijd87.glb).
+Спочатку необхідно завантажити модель-оклюдер та емпірично нала-
+штувати її розміри та положення:
+const occluder = await loadGLTF("headOccluder.glb");
+occluder.scene.scale.set(0.065, 0.065, 0.065);
+occluder.scene.position.set(0, -0.3, 0.15);
+Наступним кроком є забезпечення “правильної” прозорості оклюдера –
+якщо просто встановити для неї параметри матеріалу transparent у true та
+opacity у 1.0, окуляри просвічуватимуться, а не відсікатися. Для досягне-
+ння необхідного ефекту створимо матеріал із властивістю colorWrite, яка
+визначає, чи рендерити колір матеріалу. Це може бути використано разом
+з властивістю renderOrder для створення невидимого об’єкту, які закрива-
+ють інші об’єкти:
+const occluderMaterial =
+new THREE.MeshBasicMaterial({colorWrite: false});
+occluder.scene.renderOrder = 0;
+111Властивість renderOrder визначає порядок рендерингу. Для оклюдера
+вона встановлена у 0 (рендерити першим), а для окулярів – у 1 (рендерити
+другим):
+glasses.scene.renderOrder = 1;
+Метод traverse застосовується для того, щоб викликати функцію для
+об’єкта та всіх його нащадків. Ураховуючи, що модель є ієрархією об’єктів,
+застосуємо його для того, щоб у тих з них, які є об’єктними сітками,
+замінити матеріал на невидимий:
+occluder.scene.traverse((o) => {
+if (o.isMesh) {
+o.material = occluderMaterial;
+}
+});
+Останнім кроком є створення якоря для оклюдера, який також, як і
+якір для окулярів, прив’язаний до переносиці:
+const occluderAnchor = mindarThree.addAnchor(168);
+occluderAnchor.group.add(occluder.scene);
+Результат цілком працездатний, хоча й далекий від ідеального
+(рис. 4.4).
+Причина в тому, що оклюдер має дещо іншу форму, ніж голова на
+рис. 4.4. Крім того, положення голови оцінюється, використовуючи опорні
+точки на обличчі, що визначаються неточно.
+Позиціювання буде працювати краще, якби голова була поголена,
+а обличчя б не мало суттєвих жирових відкладень. Альтернативним
+варіантом забезпечення точності є створення точних моделей конкретних
+голів.
+4.3
+Накладання маски на обличчя
+Маска для обличчя (face mesh) – ще один тип доповненої реальності,
+пов’язаної з накладання зображень (текстур) на всі опорні точки обличчям
+112Рис. 4.4. Демонстрація роботи оклюдера.
+людини, а не прив’язки до окремих із них. Маски для обличчя використо-
+вуються для створення різноманітних ефектів макіяжу, татуювання тощо –
+аж до повної віртуалізації особи.
+Маска для обличчя не є заздалегідь визначеною 3D-моделлю – вона
+динамічно генерується з постійним оновленням геометрії.
+Для накладання маски на обличчя нам знадобиться відповідна тексту-
+ра, для завантаження якої застосовується метод loadTexture з користува-
+цької бібліотеки loader.js:
+import {loadTexture} from "./loader.js";
+Створення маски відбувається викликом addFaceMesh:
+const faceMesh = mindarThree.addFaceMesh();
+Метод addFaceMesh за формою схожий на addAnchor, але сутність у
+них різна: у addAnchor створюється порожня група, до якої додаються
+113об’єкти, положенням яких керує MindAR, у той час як faceMesh, що повер-
+тається addFaceMesh, є єдиним відображуваним об’єктом, геометрія якого
+змінюється у кожному кадрі.
+Матеріалом маски для обличчя може бути довільна текстура – якщо її
+не встановити, маска для обличчя буде виглядати, як показано на першому
+зображенні (рис. 4.5).
+Побачити структуру цієї маски можна на другому зображенні
+(рис. 4.5) – для цього необхідно встановити атрибут wireframe матеріалу
+зображення:
+faceMesh.material.wireframe = true;
+Третє, четверте та п’яте зображення (рис. 4.5) є приклада-
+ми накладання модифікованих та оригінальної (https://github.
+com/google/mediapipe/blob/master/mediapipe/modules/face_
+geometry/data/canonical_face_model_uv_visualization.png)
+текстур опорних точок обличчя. У документації до Meta Spark
+Studio
+(https://sparkar.facebook.com/ar-studio/learn/articles/
+people-tracking/face-reference-assets#optimization) можна знайти
+набір текстур для масок для обличчя, що можна використовувати для
+створення власних масок, як описано у https://sparkar.facebook.
+com/ar-studio/learn/articles/creating-and-prepping-assets/
+the-face-mask-template-in-Adobe/.
+В якості прикладу застосуємо текстуру з https://tinyurl.com/
+3nx53bek (рис. 4.5, шосте зображення):
+const texture = await loadTexture("moustache1.png");
+faceMesh.material.map = texture;
+Текстура texture, встановлена в якості матеріалу маски для обличчя,
+містить певні прозорі елементи, для підтримки яких встановлюється вла-
+стивість матеріалу transparent (рівень прозорості регулюється значенням
+opacity):
+faceMesh.material.transparent = true;
+114Рис. 4.5. Маски для обличчя.
+115Встановлення параметру needsUpdate необхідно для вказання на не-
+обхідність оновлення текстури при зімні геометрії:
+scene.add(faceMesh);
+Останній крок – розміщення маски на сцені; в ідеалі, маска для обличчя
+повинна мати таку ж геометрію та положення, як і саме обличчя:
+scene.add(faceMesh);
+Створення гарної маски потребує певних художніх навичок, проте, по-
+слуговуючись канонічною текстурою (рис. 4.2), це зробити досить просто –
+достатньо нанести поверх неї необхідне зображення та видалити зайві лінії.
+4.4
+Перемикання камери
+Сьогодні більшість мобільних пристроїв має дві камери, передню (фрон-
+тальну) та задню (тильну), тому у WebAR додатках можливість переми-
+кання між ними – важливий складник функціональності (рис. 4.6).
+Для її реалізації у документі HTML доцільно створити кнопку:
+<button id="switch">Переключитись на іншу камеру</button>
+Розміщення кнопки у документі визначається стильовим описом:
+<style>
+#switch {
+position: fixed;
+bottom: 5px;
+left: 50%;
+transform: translateX(-50%);
+z-index: 10;
+}
+</style>
+116Рис. 4.6. Доповнена реальність на зображеннях із фронтальної та тильної
+камер.
+Встановлення position у fixed означає, що для кнопки в макеті
+сторінки не створюється окреме місце – вона позиціонується відносно бло-
+ку, встановленого viewport. Її кінцева позиція визначається значеннями
+top, right, bottom і left – останні два встановлені явно.
+117Властивість z-index встановлена у досить велике значення, що визна-
+чає розташування кнопки поверх елементів із меншим, ніж 10, значенням
+z-index.
+Властивість transform надає можливість обертати, масштабувати, на-
+хиляти та зміщувати кнопку – останнє реалізовано викликом translateX
+вліво на половину ширини viewport.
+По натисканню кнопки викликається метод переключення на іншу ка-
+меру:
+document.querySelector("#switch").addEventListener("click", () => {
+mindarThree.switchCamera();
+});
+4.5
+Захоплення кадрів
+Інша бажана функціональність – захоплення кадрів: створення фо-
+тознімку сцени у доповненій реальності. MindAR не надає для неї певно-
+го стандартного методу, проте створення власної функції для захоплення
+кадрів не є проблематичним. При цьому можна не обмежуватись лише ка-
+дром – за потреби, до фото можна додати рамку, логотип, підпис тощо.
+Для її реалізації у документі HTML доцільно створити кнопку – цього
+разу без надпису:
+<button id="capture"></button>
+Надпис не потрібен тому, що кнопка однозначно ідентифікується фор-
+мою – значення властивості стилю border-radius від 50% до 100% роблять
+її круглою:
+<style>
+#capture {
+position: fixed;
+bottom: 2vh;
+left: 50%;
+height: 12vw;
+width: 12vw;
+118border: solid 2px;
+border-radius: 50%;
+transform: translateX(-50%);
+z-index: 10;
+}
+</style>
+По натисканню кнопки викликається метод захоплення кадру відео –
+даний фрагмент коду необхідно додати до функції start. Параметром ме-
+тоду capture є об’єкт AR-рушія mindarThree:
+document.querySelector("#capture").addEventListener("click", () => {
+capture(mindarThree);
+});
+Визначити його можна за межами обробника події DOMContentLoaded:
+const capture = (mindarThree) => {
+}
+З об’єкту mindarThree отримаємо те, що необхідно для виконання
+знімку – відеопотік, рендерер, сцену та камеру:
+const {video, renderer, scene, camera} = mindarThree;
+Для створення доповненого фото нам необхідно спочатку взяти кадр
+з відеопотоку video, а потім на нього накласти зображення з полотна
+renderCanvas, яке є складовою документа, пов’язаною з рендерером:
+const renderCanvas = renderer.domElement;
+Для суміщення цих зображень нам знадобиться буфер – ще одне поло-
+тно canvas, яке існуватиме виключно у пам’яті й не буде візуалізуватись:
+const canvas = document.createElement(’canvas’);
+Фото є двовимірним об’єктом, тому для отримання контексту малюва-
+ння викликаємо метод getContext із параметром 2d:
+119const context = canvas.getContext("2d");
+Цей метод, як й ті, що використовуватимуться надалі, не є мето-
+дами Three.js – вони належать до низькорівневого Web API, а саме
+до інтерфейсу HTMLCanvasElement (https://developer.mozilla.org/
+en-US/docs/Web/API/HTMLCanvasElement). Звернення до нього зумовле-
+не тим, що відеопотік з камери як такий не контролюється бібліотекою
+Three.js.
+Розміри полотна-буфера для доповненого фото встановимо у розміри
+полотна, на якому відображені об’єкти Three.js:
+canvas.width = renderCanvas.width;
+canvas.height = renderCanvas.height;
+За бажання, до полотна-буфера можна додати рамку – тоді розміри до-
+ведеться збільшити на її подвоєні ширину та висоту. Полотно-буфер може
+бути й меншого розміру, але тоді при копіюванні відеокадру та проєкції
+3D-сцени їх доведеться пропорційно масштабувати.
+Всі дії над вмістом буферного полотна виконуються через його кон-
+текст малювання. Метод drawImage виконує копіювання на буферне по-
+лотно canvas зображення, що є першим параметром методу – у нашому
+випадку одного кадру відеопотоку video:
+const sx = (video.clientWidth - renderCanvas.clientWidth) / 2
+* video.videoWidth / video.clientWidth;
+const sy = (video.clientHeight - renderCanvas.clientHeight) / 2
+* video.videoHeight / video.clientHeight;
+const sw = video.videoWidth - sx * 2;
+const sh = video.videoHeight - sy * 2;
+context.drawImage(video, sx, sy, sw, sh,
+0, 0, canvas.width, canvas.height);
+Інші параметри drawImage – координати (sx, sy) верхнього лівого кута
+зображення, що копіюється, його ширина sw та висота sh, а також ана-
+логічний набір для місця, куди виконується копіювання: (0, 0) відповідає
+120початку буферного полотна, canvas.width та canvas.height – його ши-
+рині та висоті.
+Обчислення sx, sy, sw, sh необхідно як тому, що розміри відео та по-
+лотна не співпадають (рис. 4.7), так й тому, шо полотно може покривати
+не все відео (наприклад, через ненульові границі відео може симетрично
+виходити за межі полотна).
+Рис. 4.7. Приклад захоплення доповненого фото.
+Скопіювати до буферного полотна зображення з полотна renderCanvas,
+що містить об’єкти доповненої реальності, суттєво простіше, адже вони
+однакового розміру, тому при виклику drawImage вказується лише один
+набір параметрів – другий вважається йому ідентичним. Проте одного ви-
+клику drawImage недостатньо: цілком може статись, що скопіюється по-
+рожнє зображення через те, що на кожному кадрі полотно renderCanvas
+очищується й усі об’єкти на ньому відображаються заново – ми просто мо-
+жемо потрапити на момент очищення. Щоб цього запобігти, необхідно вста-
+новити значення preserveDrawingBuffer у true для того, щоб зберігати
+буфери до ручного очищення або перезапису, після чого явно виконати
+перезапис буферу актуальним зображенням викликом render:
+renderer.preserveDrawingBuffer = true;
+renderer.render(scene, camera);
+121context.drawImage(renderCanvas, 0, 0, canvas.width, canvas.height);
+renderer.preserveDrawingBuffer = false;
+Отже, у буферному полотні збережені як кадр з відео, масштабований
+до розмірів полотна з об’єктами Three.js, так й саме це полотно із об’єктами
+Three.js – якщо присутні об’єкти доповненої реальності, реалізовані через
+CSS, необхідно отримати ще одно полотно для них із рендереру CSS та у
+аналогічний спосіб скопіювати його вміст до буферного полотна (пропону-
+ємо це як вправу).
+Метод toDataURL повертає URL-адресу даних data, що містить пода-
+ння зображення роздільною здатністю 96 dpi у форматі, заданому його
+параметром – якщо формат файлу не вказано, або якщо даний формат не
+підтримується, то дані будуть експортовані у форматі image/png:
+const data = canvas.toDataURL("image/png");
+Повернути ці дані користувачу можна, створивши тимчасове безіменне
+гіперпосилання, яке, так само як й буферне полотно, не додається до
+документу, а існує лише в пам’яті. Метод click імітує натискання на
+гіперпосилання – у результаті користувач отримає файл з ім’ям, заданим
+у властивості download, та вмістом data, заданим властивістю href:
+const link = document.createElement("a");
+link.download = "photo.png";
+link.href = data;
+link.click();
+4.6
+Застосування Web Share API на мобільних при-
+строях
+Продовжуючи приклад із захопленням доповнених фотографій, розгля-
+немо, як поділитися захопленими (та, звичайно, захоплюючими) кадрами
+у соціальних мережах за допомогою Web Share API. Для цього, крім кно-
+пки capture для захопленням фото із попереднього прикладу, передбачимо
+блок попереднього перегляду, до складу якого включимо три елементи –
+preview-image (зображення для попереднього перегляду), preview-close
+122(контейнер із надписом X, що виконуватиме роль кнопки) та preview-share
+(аналогічний контейнер із надписом Поділитись):
+<button id="capture"></button>
+<div id="preview">
+<div id="preview-close">X</div>
+<img id="preview-image"/>
+<div id="preview-share">Поділитись</div>
+</div>
+До блоку опису стилів додамо описи нових елементів:
+• блок попереднього перегляду – прихований прямокутник посередині
+головного вікна документу, що має 80% його розміру та обрамлений
+білою рамкою товщиною 10 пікселів:
+#preview { position: fixed; z-index: 10; left: 10%; top: 10%;
+width: 80%; height: 80%; border: solid 10px white;
+visibility: hidden; }
+• зображення для попереднього перегляду займатиме 100% розміру
+блоку, в який воно вкладене:
+#preview-image { width: 100%; height: 100%; }
+• “кнопка” закриття розташована поверх зображення у його правому
+верхньому куті:
+#preview-close { position: absolute; right: 0; top: 0;
+font-size: 20px; padding: 5px;
+border: solid 1px; cursor: pointer;
+color: white; border: solid 5px white;
+right: -5px; top: -5px; }
+• блок елементів, за допомогою яких можна буде поділитись зображен-
+ням, розташований у нижній частини на півширини основного вікна:
+123#preview-share { border: solid 1px; text-align: center;
+cursor: pointer; background: white;
+position: absolute; left: 50%;
+transform: translateX(-50%); bottom: 10px;
+padding: 10px 30px; border-radius: 10px;
+border: none; }
+Приберемо з функції capture блок завантаження файлу – тепер вона
+буде повертати саме захоплене зображення:
+const capture = (mindarThree) => {
+const {video, renderer, scene, camera} = mindarThree;
+const renderCanvas = renderer.domElement;
+const canvas = document.createElement("canvas");
+const context = canvas.getContext("2d");
+canvas.width = renderCanvas.width;
+canvas.height = renderCanvas.height;
+const sx = (video.clientWidth - renderCanvas.clientWidth) / 2
+* video.videoWidth / video.clientWidth;
+const sy = (video.clientHeight - renderCanvas.clientHeight) / 2
+* video.videoHeight / video.clientHeight;
+const sw = video.videoWidth - sx * 2;
+const sh = video.videoHeight - sy * 2;
+context.drawImage(video, sx, sy, sw, sh,
+0, 0, canvas.width, canvas.height);
+renderer.preserveDrawingBuffer = true;
+renderer.render(scene, camera);
+context.drawImage(renderCanvas, 0, 0, canvas.width, canvas.height);
+renderer.preserveDrawingBuffer = false;
+const data = canvas.toDataURL("image/png");
+return data;
+}
+Основні зміни – у функції start. Спочатку створимо об’єкти для
+маніпулюванні із контейнерами, вкладеними у preview. Для цього вико-
+ристаємо метод document.querySelector з їх ідентифікаторами:
+124const previewImage = document.querySelector("#preview-image");
+const previewClose = document.querySelector("#preview-close");
+const preview = document.querySelector("#preview");
+const previewShare = document.querySelector("#preview-share");
+Далі змінимо обробник натискання на кнопку capture – отримавши за-
+хоплене зображення, передамо його до елементу preview-image документу
+HTML та зробимо його видимим:
+document.querySelector("#capture").addEventListener("click", () => {
+const data = capture(mindarThree);
+preview.style.visibility = "visible";
+previewImage.src = data;
+});
+У результаті цієї дії захоплене зображення з’явиться у “вікні” попере-
+днього перегляду та буде масштабовано під його розмір без дотримання
+пропорцій (рис. 4.8).
+Рис. 4.8. Приклад роботи Web Share API на мобільному пристрої.
+При натисканні в області попереднього перегляду відповідний елемент
+приховується:
+125previewClose.addEventListener("click", () => {
+preview.style.visibility = "hidden";
+});
+При натисканні на Поділитись створюємо буферне полотно canvas, до
+якого копіюємо захоплене та збережене у previewImage зображення:
+previewShare.addEventListener("click", () => {
+const canvas = document.createElement("canvas");
+canvas.width = previewImage.width;
+canvas.height = previewImage.height;
+const context = canvas.getContext("2d");
+context.drawImage(previewImage, 0, 0, canvas.width, canvas.height);
+Метод toBlob створює об’єкт blob класу Blob – зображення із має
+роздільною здатністю 96 dpi, яке міститься в canvas. Параметром toBlob
+є функція зворотного виклику:
+canvas.toBlob((blob) => {
+const file = new File([blob], "photo.png", {type: "image/png"});
+const files = [file];
+if (navigator.canShare && navigator.canShare({files})) {
+navigator.share({files: files, title: "AR Photo", })
+} else {
+const link = document.createElement("a");
+link.download = "photo.png";
+link.href = previewImage.src;
+link.click();
+}
+});
+});
+Нащадком класу Blob є клас File, конструктор якого приймає масив
+даних про зображення blob, ім’я та MIME-тип файлу. Web Share API пе-
+редбачає, що поділитись можна множиною файлів, тому створюється ма-
+сив files, до якого включається один єдиний елемент – сконструйований
+об’єкт file.
+126Доступність Web Share API поки що обмежена, тому перед йо-
+го використанням слід перевірити, чи він підтримується, викликами
+navigator.canShare: перший виклик (без параметрів) перевіряє досту-
+пність Web Share API, а другий – можливість поділитись файлами з масиву
+files: метод navigator.canShare повертає true, якщо еквівалентний ви-
+клик navigator.share був би успішним, та false, якщо дані не можуть
+бути перевірені. Через те, що Web Share API обмежений політикою дозво-
+лу на спільний доступ до веб-ресурсу, метод navigator.canShare поверне
+false, якщо дозвіл підтримується, але не був наданий.
+За успішної перевірки викликається метод navigator.share, аргумен-
+тами якого є масив files об’єктів класу File та необов’язковий заголовок
+title. За бажанням, можна поділитись також посиланням url та рядком
+text.
+Якщо файлами не можна поділитись за допомогою Web Share API, ви-
+користовуємо спосіб із попереднього прикладу – автозавантаження зобра-
+ження на пристрій.
+Існують альтернативи застосуванню Web Share API – так, можна бу-
+ло б налаштувати сервер, на який завантажувати захоплене зображення і
+генерувати публічну URL-адресу.
+Інший варіант – спробувати натиснути на зображення для попереднього
+перегляду правою кнопкою миші та зберегти його або натиснути пальцем у
+мобільному браузері й утримувати це зображення – з’являється спливаюче
+вікно, що дозволяє легко поділитися зображенням. Тоді для користувача
+доцільно було б вивести інструкцію типу “Натисніть і утримуйте зображе-
+ння для того, щоб поділитись ним”.
+4.7
+Приклад: примірка віртуальних аксесуарів
+Віртуальна примірка2 є одним із доцільних застосувань доповненої
+реальності, пов’язаної з відстеженням обличчя. ХіуКім Юен пропонує
+приклад такої примірочної (https://hiukim.github.io/mind-ar-js-doc/
+face-tracking-examples/tryon), у якій користувачі можуть вибирати і
+приміряти різні віртуальні аксесуари – скористаємось ним для того, щоб
+2
+Див., наприклад, Examples of AR-powered virtual try ons in the fashion industry (https://www.
+divante.com/blog/examples-of-ar-powered-virtual-try-ons-in-the-fashion-industry)
+127показати, як може працювати такий додаток.
+Для створення власної примірочної необхідно, по-перше, завантажити
+різні аксесуари, в ідеалі – однотипні, але можуть бути й різних типів, кожен
+із яких потребує власну точку для прикріплення на обличчі.
+У прикладі пропонуються три типи аксесуарів – капелюхи, окуляри та
+сережки, які можна замінити та доповнити на інші безкоштовні моделі,
+знайдені в Інтернет. Початкове налаштування їх розмірів та позиції вико-
+нується емпірично.
+По-друге, необхідно створити певний інтерфейс для управління вибо-
+ром. Так, можна просто показати всі аксесуари, якщо їх небагато, але за
+великої кількості доцільно надати можливість вибору спочатку типу аксе-
+суару, а потім вже конкретного екземпляру.
+По-третє, необхідно надати можливість ділитись результатами
+примірки через Web Share API (рис. 4.9).
+Рис. 4.9. Примірка віртуальних аксесуарів.
+128Серед інших ідей, що можуть бути реалізовані з використанням масок
+для обличчя – вибір типу макіяжу, татуювання тощо.
+Початок документу HTML віртуальної примірочної типовий – налашту-
+вання області відображення, підключення MindAR та Three.js й основної
+програми:
+<html>
+<head>
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
+<script src=
+"https://cdn.jsdelivr.net/npm/mind-ar/dist/mindar-face-three.prod.js"
+></script>
+<script type="importmap">
+{
+"imports": {
+"three": "https://unpkg.com/three/build/three.module.js"
+}
+}
+</script>
+<script src="./main.js" type="module"></script>
+Типовим є й налаштування CSS для документа та його тіла:
+<style>
+html, body { position: relative; margin: 0; width: 100%;
+height: 100%; overflow: hidden }
+На рис. 4.9 (ліворуч) показані елементи блоку вибору аксесуарів
+selections, розташовані у верхній частині по центру:
+#selections { position: fixed; left: 50%; top: 0; z-index: 2;
+width: 100%; text-align: center;
+transform: translateX(-50%); }
+У блоці selections розміщуються напівпрозорі зображення, масшта-
+бовані до розміру 50 × 50 зі збереженням пропорцій, обмежені рамкою
+товщиною 5 пікселів:
+129#selections img { border: solid 5px; width: 50px; height: 50px;
+object-fit: cover; cursor: pointer;
+opacity: 0.5; }
+Коли аксесуар обирається, його зображення стає непрозорим, а рамка –
+зеленого кольору:
+#selections img.selected { border-color: green; opacity: 1; }
+Стильовий опис блоку preview елементів для попереднього перегля-
+ду та поширення доповненого фото (preview-image, preview-close та
+preview-share) та кнопки для його захоплення capture такий самий, як
+й у попередньому прикладі:
+#preview { position: fixed; z-index: 10; left: 10%; top: 10%;
+width: 80%; height: 80%; border: solid 10px white;
+visibility: hidden; }
+#preview-image { width: 100%; height: 100%; }
+#preview-close { position: absolute; right: 0; top: 0;
+font-size: 20px; padding: 5px;
+border: solid 1px; cursor: pointer;
+color: white; border: solid 5px white;
+right: -5px; top: -5px; }
+#preview-share { border: solid 1px; text-align: center;
+cursor: pointer; background: white;
+position: absolute; left: 50%;
+transform: translateX(-50%); bottom: 10px;
+padding: 10px 30px; border-radius: 10px;
+border: none; }
+#capture { position: fixed; bottom: 2vh; left: 50%;
+height: 12vw; width: 12vw; border: solid 2px;
+border-radius: 50%; transform: translateX(-50%);
+z-index: 10; }
+</style>
+</head>
+130Тіло документа складається з контейнеру selections, кнопки capture
+та контейнеру preview. До складу контейнеру selections входять 5 зобра-
+жень попереднього перегляду аксесуарів із ідентифікаторами hat1, hat2,
+glasses1, glasses2 та earring – останньому відповідатимуть два об’єкти
+(сережки на ліве та праве вухо):
+<body>
+<div id="selections">
+<img id="hat1" src="https://raw.githubusercontent.com/hiukim/
+mind-ar-js/master/examples/face-tracking/assets/hat/thumbnail.png"/>
+<img id="hat2" src="https://raw.githubusercontent.com/hiukim/
+mind-ar-js/master/examples/face-tracking/assets/hat2/thumbnail.png"/>
+<img id="glasses1" src="https://raw.githubusercontent.com/hiukim/
+mind-ar-js/master/examples/face-tracking/assets/glasses/thumbnail.png"
+/>
+<img id="glasses2" src="https://raw.githubusercontent.com/hiukim/
+mind-ar-js/master/examples/face-tracking/assets/glasses2/thumbnail.png"
+/>
+<img id="earring" src="https://raw.githubusercontent.com/hiukim/
+mind-ar-js/master/examples/face-tracking/assets/earring/thumbnail.png"
+/>
+</div>
+Далі створюється кнопка capture та контейнер preview, який, у свою
+чергу, містить контейнер preview-close, зображення preview-image та
+контейнер preview-share:
+<button id="capture"></button>
+<div id="preview">
+<div id="preview-close">X</div>
+<img id="preview-image"/>
+<div id="preview-share">Share</div>
+</div>
+</body>
+</html>
+131main.js розпочинається з імпорту завантажувача моделей loadGLTF
+(саме для нього в опису документа був визначений символ three у карті
+імпорту) та отримання посилання THREE на бібліотеку Three.js:
+import {loadGLTF} from "./loader.js";
+const THREE = window.MINDAR.FACE.THREE;
+Функція capture узята із попереднього прикладу без змін:
+const capture = (mindarThree) => {
+const {video, renderer, scene, camera} = mindarThree;
+const renderCanvas = renderer.domElement;
+const canvas = document.createElement("canvas");
+const context = canvas.getContext("2d");
+canvas.width = renderCanvas.width;
+canvas.height = renderCanvas.height;
+const sx = (video.clientWidth - renderCanvas.clientWidth) / 2
+* video.videoWidth / video.clientWidth;
+const sy = (video.clientHeight - renderCanvas.clientHeight) / 2
+* video.videoHeight / video.clientHeight;
+const sw = video.videoWidth - sx * 2;
+const sh = video.videoHeight - sy * 2;
+context.drawImage(video, sx, sy, sw, sh,
+0, 0, canvas.width, canvas.height);
+renderer.preserveDrawingBuffer = true;
+renderer.render(scene, camera);
+context.drawImage(renderCanvas, 0, 0, canvas.width, canvas.height);
+renderer.preserveDrawingBuffer = false;
+const data = canvas.toDataURL("image/png");
+return data;
+}
+Після завантаження документу HTML спрацьовує обробник події
+DOMContentLoaded, за якою визначається та викликається асинхронна фун-
+кція start:
+132document.addEventListener("DOMContentLoaded", () => {
+const start = async() => {
+На початку функції start створюється об’єкт mindarThree – екзем-
+пляр AR-рушія, реалізованого у бібліотеці MindAR, який розташує шари
+полотна та відео у тілі документа:
+const mindarThree = new window.MINDAR.FACE.MindARThree({
+container: document.body,
+});
+Конструктор window.MINDAR.FACE.MindARThree створює рендерер,
+сцену та камеру Three.js – доступ до них можна отримати з відповідних
+властивостей об’єкту mindarThree:
+const {renderer, scene, camera} = mindarThree;
+Через те, що віртуальні аксесуари розташовані на обличчі, крім фоно-
+вого освітлення light встановимо світильник (напрямлене світло) light2
+перед обличчям. Щоб світло від нього не било в очі, піднімемо його та
+змістимо вліво:
+const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+const light2 = new THREE.DirectionalLight(0xffffff, 0.6);
+light2.position.set(-0.5, 1, 1);
+scene.add(light);
+scene.add(light2);
+Для того, щоб віртуальні аксесуари виглядали природно (зокрема, не
+були видимі тоді, коли реальна голова мала б їх закривати), створимо
+об’єкт-оклюдер – голову:
+const occluder = await loadGLTF(
+"https://raw.githubusercontent.com/hiukim/mind-ar-js/master/"+
+"examples/face-tracking/assets/sparkar/headOccluder.glb");
+occluder.scene.scale.set(0.065, 0.065, 0.065);
+occluder.scene.position.set(0, -0.3, 0.15);
+133Для того, щоб його не було видно, будемо його будувати у пам’яті без
+відображення на сцені:
+occluder.scene.traverse((o) => {
+if (o.isMesh) {
+const occluderMaterial =
+new THREE.MeshPhongMaterial({colorWrite: false});
+o.material = occluderMaterial;
+}
+});
+Для правильної роботи алгоритмів кидання та трасування променів
+оклюдер має завжди будуватись першим:
+occluder.scene.renderOrder = 0;
+Створимо якір для оклюдера та прив’яжемо його до точки між очима
+(168):
+const occluderAnchor = mindarThree.addAnchor(168);
+occluderAnchor.group.add(occluder.scene);
+До тієї ж точки прив’яжемо перші окулярі, проте відображати їх будемо
+завжди після оклюдера:
+const glasses = await loadGLTF(
+"https://raw.githubusercontent.com/hiukim/mind-ar-js/master/"+
+"examples/face-tracking/assets/glasses/scene.gltf");
+glasses.scene.scale.set(0.01, 0.01, 0.01);
+glasses.scene.renderOrder = 1;
+const glassesAnchor = mindarThree.addAnchor(168);
+glassesAnchor.group.add(glasses.scene);
+Аналогічно завантажується та налаштовується друга модель окулярів:
+const glasses2 = await loadGLTF(
+"https://raw.githubusercontent.com/hiukim/mind-ar-js/master/"+
+134"examples/face-tracking/assets/glasses2/scene.gltf");
+glasses2.scene.rotation.set(0, -Math.PI/2, 0);
+glasses2.scene.position.set(0, -0.3, 0);
+glasses2.scene.scale.set(0.6, 0.6, 0.6);
+glasses2.scene.renderOrder = 1;
+const glasses2Anchor = mindarThree.addAnchor(168);
+glasses2Anchor.group.add(glasses2.scene);
+Обидва капелюхи прив’яжемо до найвищої точки маски обличчя (10):
+const hat1 = await loadGLTF(
+"https://raw.githubusercontent.com/hiukim/mind-ar-js/master/"+
+"examples/face-tracking/assets/hat/scene.gltf");
+hat1.scene.position.set(0, 1, -0.5);
+hat1.scene.scale.set(0.35, 0.35, 0.35);
+hat1.scene.renderOrder = 1;
+const hat1Anchor = mindarThree.addAnchor(10);
+hat1Anchor.group.add(hat1.scene);
+const hat2 = await loadGLTF(
+"https://raw.githubusercontent.com/hiukim/mind-ar-js/master/"+
+"examples/face-tracking/assets/hat2/scene.gltf");
+hat2.scene.position.set(0, -0.2, -0.5);
+hat2.scene.scale.set(0.008, 0.008, 0.008);
+hat2.scene.renderOrder = 1;
+const hat2Anchor = mindarThree.addAnchor(10);
+hat2Anchor.group.add(hat2.scene);
+Хоча моделі сережок на ліве та праве вуха є ідентичними,
+прив’язуються вони до різних точок – 127 та 356:
+const earringLeft = await loadGLTF(
+"https://raw.githubusercontent.com/hiukim/mind-ar-js/master/"+
+"examples/face-tracking/assets/earring/scene.gltf");
+earringLeft.scene.position.set(0, -0.3, -0.3);
+earringLeft.scene.scale.set(0.05, 0.05, 0.05);
+135earringLeft.scene.renderOrder = 1;
+const earringLeftAnchor = mindarThree.addAnchor(127);
+earringLeftAnchor.group.add(earringLeft.scene);
+const earringRight = await loadGLTF(
+"https://raw.githubusercontent.com/hiukim/mind-ar-js/master/"+
+"examples/face-tracking/assets/earring/scene.gltf");
+earringRight.scene.position.set(0, -0.3, -0.3);
+earringRight.scene.scale.set(0.05, 0.05, 0.05);
+earringRight.scene.renderOrder = 1;
+const earringRightAnchor = mindarThree.addAnchor(356);
+earringRightAnchor.group.add(earringRight.scene);
+Кожне із зображень у контейнері selections виступатиме у ролі
+кнопки, ідентифікатори яких з документу HTML заносяться до масиву
+buttons:
+const buttons =
+["#glasses1", "#glasses2", "#hat1", "#hat2", "#earring"];
+Масив models містить завантажені моделі аксесуарів, а масив visibles
+визначає їх видимість:
+const models = [
+[glasses.scene], [glasses2.scene], [hat1.scene], [hat2.scene],
+[earringLeft.scene, earringRight.scene]];
+const visibles = [true, false, false, true, true];
+Функція setVisible керуватиме видимістю кнопки вибору
+віртуального аксесуару та моделей. Для моделей достатньо встанови-
+ти їх властивість visible, а для кнопок (що є зображеннями) видимість
+керується стильовим описом – наявністю чи відсутністю атрибуту
+selected:
+const setVisible = (button, models, visible) => {
+if (visible) {
+136button.classList.add("selected");
+} else {
+button.classList.remove("selected");
+}
+models.forEach((model) => {
+model.visible = visible;
+});
+}
+Приклад наявності декількох моделей, пов’язаних з одним аксесуаром
+– сережки для вух.
+Для кожної кнопки з масиву buttons встановимо її початкову ви-
+димість та пов’язаних з нею моделей викликом setVisible:
+buttons.forEach((buttonId, index) => {
+const button = document.querySelector(buttonId);
+setVisible(button, models[index], visibles[index]);
+button.addEventListener("click", () => {
+visibles[index] = !visibles[index];
+setVisible(button, models[index], visibles[index]);
+});
+});
+Отримаємо з документу HTML посилання на елементи попереднього
+перегляду захопленого зображення та його поширення:
+const previewImage = document.querySelector("#preview-image");
+const previewClose = document.querySelector("#preview-close");
+const preview = document.querySelector("#preview");
+const previewShare = document.querySelector("#preview-share");
+При натисканні на кнопку захоплення фото виконуємо його захоплення
+викликом capture, робимо видимим зображення для попереднього пере-
+гляду встановленням відповідного стильового елементу та пов’язуємо його
+із захопленим фото:
+137document.querySelector("#capture").addEventListener("click", ()=>{
+const data = capture(mindarThree);
+preview.style.visibility = "visible";
+previewImage.src = data;
+});
+При натисканні на кнопку закриття попереднього перегляду (Х) при-
+ховуємо весь контейнер preview, тобто попереднє зображення, кнопки за-
+криття та поширення:
+previewClose.addEventListener("click", () => {
+preview.style.visibility = "hidden";
+});
+При натисканні на кнопку поширення (Share) копіюємо захоплене зо-
+браження до буферного полотна canvas та, за доступності інтерфейсу Web
+Share API, намагаємось поширити файл photo.png або, за недоступності,
+завантажити:
+previewShare.addEventListener("click", () => {
+const canvas = document.createElement("canvas");
+canvas.width = previewImage.width;
+canvas.height = previewImage.height;
+const context = canvas.getContext("2d");
+context.drawImage(previewImage,
+0, 0, canvas.width, canvas.height);
+canvas.toBlob((blob) => {
+const file = new File([blob],"photo.png",{type: "image/png"});
+const files = [file];
+if (navigator.canShare && navigator.canShare({files})) {
+navigator.share({ files: files, title: "AR Photo", })
+} else {
+const link = document.createElement("a");
+link.download = "photo.png";
+link.href = previewImage.src;
+138link.click();
+}
+});
+});
+Намагаємось ініціювати AR-рушій:
+await mindarThree.start();
+Налаштовуємо рендеринг сцени з точки зору камери для кожного ка-
+дру:
+renderer.setAnimationLoop(() => {
+renderer.render(scene, camera);
+});
+}
+Нарешті, викликаємо функцію start, що визначалась останні сторінки:
+start();
+});
+139

@@ -19,7 +19,8 @@ WebAR educational project using **Three.js** (3D rendering) and **MindAR** (imag
 
 Week 1 uses CDN Three.js (v0.183.1) with no MindAR. Weeks 2+ use local vendored libraries:
 - `three` → `lib/three/three_151.module.js` (Three.js v0.151)
-- `mindar-image-three` → `lib/mindar/mindar-image-three.prod.js`
+- `mindar-image-three` → `lib/mindar/mindar-image-three.prod.js` (weeks 2-7)
+- `mindar-face-three` → `lib/mindar/mindar-face-three.prod.js` (week 8+)
 - `three/addons/` → CDN (e.g., `three/addons/loaders/GLTFLoader.js`)
 
 Import maps are defined per-page in `test.html` — there is no shared config.
@@ -45,6 +46,7 @@ Then open `http://localhost:8000/weekN/test.html` for each assignment.
 | 5 | Animated models + spatial audio | GLTFLoader + AnimationMixer, PositionalAudio, target found/lost events |
 | 6 | Video texture on marker | VideoTexture on anchor, raycaster click interaction |
 | 7 | Embedded iframe video | CSS3DRenderer with YouTube/Vimeo via addCSSAnchor |
+| 8 | Face tracking AR | MindAR Face with 468 facial landmark anchors, VR/AR toggle button |
 
 ## Key Patterns
 
@@ -184,6 +186,33 @@ startButton.addEventListener("click", () => {
 document.body.appendChild(startButton);
 ```
 
+### MindAR Face Tracking (week 8)
+Face tracking uses `mindar-face-three` instead of `mindar-image-three`. No `.mind` file needed — tracks 468 facial landmarks automatically:
+```js
+const mindarThree = new MindARThree({
+    container: document.body,
+    uiScanning: "yes",
+    uiLoading: "yes",
+});
+const {scene, camera, renderer} = mindarThree;
+
+// Create 468 anchors (one per facial landmark)
+const anchors = [];
+for(let i = 0; i < 468; i++) {
+    anchors.push(mindarThree.addAnchor(i));
+}
+```
+VR/AR toggle by hiding/showing the camera video element:
+```js
+const video = document.querySelector("video");
+video.style.visibility = "hidden";  // VR mode (no camera feed)
+video.style.visibility = "visible"; // AR mode (with camera feed)
+```
+
 ## Language
 
 UI text is in Ukrainian. Variable names and code comments are in English.
+
+## Planned Weeks
+
+Weeks 9-12 are listed in `index.html` but not yet implemented.

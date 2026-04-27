@@ -1,0 +1,5 @@
+[    1815ms] [WARNING] W0427 05:44:48.924000 1883440 face_landmarker_graph.cc:180] Sets FaceBlendshapesGraph acceleration to xnnpack by default. @ https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm/vision_wasm_internal.js:8
+[    1946ms] [LOG] I0427 05:44:49.056000 1883440 gl_context.cc:361] GL version: 3.0 (OpenGL ES 3.0 (WebGL 2.0 (OpenGL ES 3.0 Chromium))), renderer: WebKit WebGL @ https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm/vision_wasm_internal.js:8
+[    1949ms] [WARNING] W0427 05:44:49.058000 1883440 gl_context.cc:1004] OpenGL error checking is disabled @ https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm/vision_wasm_internal.js:8
+[    1950ms] [LOG] Graph successfully started running. @ https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm/vision_wasm_internal.js:8
+[    2423ms] [ERROR] INFO: Created TensorFlow Lite XNNPACK delegate for CPU. @ https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm/vision_wasm_internal.js:8
