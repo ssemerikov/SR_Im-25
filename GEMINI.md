@@ -35,23 +35,72 @@ npx serve .
 ```
 Після запуску відкрийте `http://localhost:8000` у браузері.
 
-## Development Conventions
+## Weekly Progression
 
-1. **Import Maps**: Завжди перевіряйте шлях до бібліотек у `test.html`. Для кожного тижня він може дещо відрізнятись залежно від глибини вкладеності.
-2. **MindAR Lifecycle**: При реалізації кнопок Start/Stop (починаючи з week4), важливо коректно очищати ресурси:
-   - `mindarThree.stop()`
-   - `renderer.setAnimationLoop(null)`
-   - Очищення масивів анімацій та аудіо-слухачів.
-3. **User Interaction**: Відтворення звуку та запуск камери вимагають попередньої взаємодії користувача з документом (click/touchstart) через політику безпеки сучасних браузерів.
-4. **Coordinate Systems**: MindAR використовує метричну систему, де 1 одиниця приблизно дорівнює розміру маркера в реальному світі.
+| Week | Focus | Key Feature |
+|------|-------|-------------|
+| 1 | Basic Three.js scene | Rotating cube + camera feed, no AR |
+| 2 | First MindAR | Single/multi-anchor AR with colored cubes |
+| 3 | Textured geometries | Multi-face textured cube, capsule, circle on anchor |
+| 4 | UI-controlled AR + start/stop | Split-pane layout, custom scan overlay, GLB model loading, start/stop button |
+| 5 | Animated models + spatial audio | GLTFLoader + AnimationMixer, PositionalAudio, target found/lost events |
+| 6 | Video texture on marker | VideoTexture on anchor, raycaster click interaction |
+| 7 | Embedded iframe video | CSS3DRenderer with YouTube/Vimeo via addCSSAnchor |
+| 8 | Face tracking AR | MindAR Face with 468 facial landmark anchors, VR/AR toggle button |
+| 9-10 | Advanced tracking | Continued exploration of face/image tracking features |
+| 11-12 | Planned | Final project and advanced integrations |
 
-## Technical Milestones
+## Technical Patterns & Conventions
 
-- **Week 2**: Базовий трекінг зображень.
-- **Week 4**: Розділений інтерфейс (UI) та ручне керування життєвим циклом AR.
-- **Week 5**: Анімовані моделі та просторовий (3D) звук.
-- **Week 6-7**: Відео-текстури та інтеграція зовнішніх медіа (YouTube/Vimeo) через CSS3DRenderer.
-- **Week 8/10**: Face tracking з використанням 468 точок обличчя та режим VR.
+### Module Resolution
+Import maps are defined per-page in `test.html`.
+- `three` → `lib/three/three_151.module.js`
+- `mindar-image-three` → `lib/mindar/mindar-image-three.prod.js`
+- `mindar-face-three` → `lib/mindar/mindar-face-three.prod.js`
+
+### MindAR Lifecycle
+Important for weeks 4+:
+- `mindarThree.stop()`
+- `renderer.setAnimationLoop(null)`
+- Clean up audio listeners and animation arrays.
+
+### User Interaction
+Audio and camera require user interaction (click/touchstart) due to browser security policies.
+
+### Coordinate Systems
+MindAR uses a metric system where 1 unit ≈ marker size in the real world.
+
+### Key Code Snippets
+
+#### MindAR Initialization (Image)
+```js
+const mindarThree = new MindARThree({
+    container: document.body,
+    imageTargetSrc: "../assets/foo.mind",
+    maxTrack: 2,
+    uiScanning: "yes",
+    uiLoading: "yes",
+});
+const {renderer, scene, camera} = mindarThree;
+```
+
+#### Anchors and Events
+```js
+const anchor = mindarThree.addAnchor(index);
+anchor.group.add(mesh);
+anchor.onTargetFound = () => { /* logic */ };
+anchor.onTargetLost = () => { /* logic */ };
+```
+
+#### Face Tracking
+```js
+const mindarThree = new MindARThree({
+    container: document.body,
+    uiScanning: "yes",
+    uiLoading: "yes",
+});
+const anchor = mindarThree.addAnchor(i); // i: 0-467
+```
 
 ---
 *Примітка: Файли `week4-*.png` є скріншотами виконання відповідного етапу завдання для звітності.*
