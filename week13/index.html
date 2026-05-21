@@ -4,20 +4,18 @@
         <script type="module" src="./main.js"></script>
         <style>
             body {margin: 0}
-            #ar-button {position: fixed; z-index: 1001; padding: 1vh;
-            bottom: 1vh; left: 50%; transform: translateX(-50%)}
         </style>
         <script type="importmap">
         {
             "imports": {
                 "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.min.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/",
+                "webxr/UARButton": "../lib/webxr/UARButton.js"
             }
         }
         </script>
     </head>
     <body>
-        <button id="ar-button">Увiйти до WebXR</button>
         <script data-consolejs-channel="e7f950b2-b64f-2019-fff2-a2ab1bb39623" src="https://remotejs.com/agent/agent.js"></script>
     </body>
 </html>

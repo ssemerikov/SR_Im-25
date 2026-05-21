@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+
 document.addEventListener("DOMContentLoaded", () => {
     const initialize = async() => {
         // код функцiї initialize
@@ -30,24 +31,54 @@ document.addEventListener("DOMContentLoaded", () => {
         const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
         scene.add(light);
 
-        let isSessionActive = false;
-
         renderer.xr.addEventListener("sessionstart", (e) => {
             console.log("Сесiю WebXR розпочато");
-            isSessionActive = true;
         });
 
         renderer.xr.addEventListener("sessionend", () => {
             console.log("Сесiю WebXR завершено");
-            isSessionActive = false;
         });
 
         //...
+        let currentSession = null;
+        const start = async() => {
+            currentSession = await navigator.xr.requestSession(
+                "immersive-ar", {
+                    optionalFeatures: ["dom-overlay"],
+                domOverlay: {root: document.body}
+                }
+            );
 
-        renderer.setAnimationLoop(() => {
-            if (!isSessionActive) return;
-            renderer.render(scene, camera);
+            renderer.xr.enabled = true;
+            renderer.xr.setReferenceSpaceType("local");
+
+            await renderer.xr.setSession(currentSession);
+            
+            arButton.textContent = "Завершити сесiю WebXR";
+            renderer.setAnimationLoop(() => {
+                if (!currentSession) return;
+                renderer.render(scene, camera);
+            });
+
+        }
+
+        const end = async() => {
+            await currentSession.end();
+            renderer.setAnimationLoop(null);
+            renderer.clear();
+            currentSession = null;
+            renderer.xr.enabled = false;
+            arButton.textContent = "Увiйти до WebXR";
+        }
+
+        arButton.addEventListener("click", () => {
+            if (currentSession) {
+                end();
+            } else {
+                start();
+            }
         });
+
     }
 
     initialize();

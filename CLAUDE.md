@@ -17,13 +17,52 @@ WebAR educational project using **Three.js** (3D rendering) and **MindAR** (imag
 
 ## Module Resolution
 
-Week 1 uses CDN Three.js (v0.183.1) with no MindAR. Weeks 2+ use local vendored libraries:
+Week 1 uses CDN Three.js (v0.183.1) with no MindAR. Weeks 2–8 and 10 use local vendored libraries:
 - `three` → `lib/three/three_151.module.js` (Three.js v0.151)
-- `mindar-image-three` → `lib/mindar/mindar-image-three.prod.js` (weeks 2-7)
-- `mindar-face-three` → `lib/mindar/mindar-face-three.prod.js` (week 8+)
+- `mindar-image-three` → `lib/mindar/mindar-image-three.prod.js` (weeks 2–7)
+- `mindar-face-three` → `lib/mindar/mindar-face-three.prod.js` (weeks 8–10)
 - `three/addons/` → CDN (e.g., `three/addons/loaders/GLTFLoader.js`)
+- `webxr/UARButton` → `lib/webxr/UARButton.js` (week 12+, custom component)
 
-Import maps are defined per-page in `test.html` — there is no shared config.
+Import maps are defined per-page in `test.html` or `index.html` — there is no shared config.
+
+## Custom Components
+
+### UARButton (week 12+)
+Власний компонент AR кнопки з українською локалізацією та градієнтним стилем. Базується на Three.js `ARButton`:
+
+```js
+import { UARButton } from 'webxr/UARButton';
+
+// Мінімальний виклик
+document.body.appendChild(UARButton.createButton(renderer, {
+    optionalFeatures: ["dom-overlay"],
+    domOverlay: { root: document.body }
+}));
+
+// Розширений виклик з callbacks
+document.body.appendChild(UARButton.createButton(renderer, {
+    optionalFeatures: ["dom-overlay"],
+    domOverlay: { root: document.body },
+    onSessionStart: (session) => {
+        // Створити XR об'єкти тільки після старту сесії
+        session.requestReferenceSpace('local').then((refSpace) => {
+            renderer.xr.setReferenceSpace(refSpace);
+            // Додати 3D об'єкти до сцени
+        });
+    },
+    onSessionEnd: () => {
+        // Очистити XR об'єкти
+    }
+}));
+```
+
+**Переваги над оригінальним ARButton:**
+- Українська локалізація: "УВІЙТИ ДО AR", "ВИЙТИ", "AR НЕ ПІДТРИМУЄТЬСЯ"
+- Градієнтний стиль: `linear-gradient(135deg, #667eea 0%, #764ba2 100%)`
+- Hover ефект: `scale(1.05)` + opacity transition
+- SVG кнопка закриття (хрестик) у верхньому правому куті
+- Автоматичне керування session lifecycle через `xr.offerSession`
 
 ## Running Locally
 
@@ -47,6 +86,10 @@ Then open `http://localhost:8000/weekN/test.html` for each assignment.
 | 6 | Video texture on marker | VideoTexture on anchor, raycaster click interaction |
 | 7 | Embedded iframe video | CSS3DRenderer with YouTube/Vimeo via addCSSAnchor |
 | 8 | Face tracking AR | MindAR Face with 468 facial landmark anchors, VR/AR toggle button |
+| 9 | Face tracking with occlusion | Head occluder, hat model, face mask toggle, photo capture |
+| 10 | Custom face mesh texture | `addFaceMesh()` with texture map, VR/AR toggle |
+| 11 | Native WebXR | `navigator.xr.requestSession()`, no MindAR |
+| 12 | UARButton component | Custom AR button with Ukrainian localization |
 
 ## Key Patterns
 
@@ -209,10 +252,27 @@ video.style.visibility = "hidden";  // VR mode (no camera feed)
 video.style.visibility = "visible"; // AR mode (with camera feed)
 ```
 
+### Face Occluder (week 9)
+A head occluder hides parts of models that should be behind the face. It uses `colorWrite: false` and is rendered first via `renderOrder`:
+```js
+const occluderMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff, colorWrite: false });
+occluder.scene.traverse((o) => {
+    if (o.isMesh) o.material = occluderMaterial;
+});
+occluder.scene.renderOrder = 0;
+```
+
+### Native WebXR (week 11)
+Week 11 does not use MindAR. It requests an immersive AR session directly:
+```js
+const session = await navigator.xr.requestSession("immersive-ar", {
+    optionalFeatures: ["dom-overlay"],
+    domOverlay: { root: document.body }
+});
+renderer.xr.enabled = true;
+await renderer.xr.setSession(session);
+```
+
 ## Language
 
 UI text is in Ukrainian. Variable names and code comments are in English.
-
-## Planned Weeks
-
-Weeks 9-12 are listed in `index.html` but not yet implemented.
