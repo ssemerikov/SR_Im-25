@@ -41,6 +41,9 @@ document.addEventListener("DOMContentLoaded", () => {
         cube.position.set(0, 0, -0.3);
         scene.add(cube);
 
+        let isHolding = false;
+        let targetObject = null;
+        const grabbingDistance = 0.3;
 
         renderer.xr.addEventListener("sessionstart", async (e) => {
             console.log("Сесію WebXR розпочато");
@@ -56,13 +59,29 @@ document.addEventListener("DOMContentLoaded", () => {
             scene.add(controller);
 
             controller.addEventListener('selectstart', () => {
-                console.log("Контролер обрано");
+                console.log("Контролер натиснуто - шукаємо ціль");
 
-                // Створити просту геометрію (наприклад, куб) при виборі
-                //cubes.push(cube);
+                controller.updateMatrixWorld();
 
-                cube.position.applyMatrix4(controller.matrixWorld);
-                cube.quaternion.setFromRotationMatrix(controller.matrixWorld);
+                const tempMatrix = new THREE.Matrix4();
+                tempMatrix.identity().extractRotation(controller.matrixWorld);
+
+                raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+                raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+                const intersects = raycaster.intersectObjects([cube]);
+
+                if (intersects.length > 0) {
+                    console.log("Ціль захоплено!");
+                    isHolding = true;
+                    targetObject = intersects[0].object;
+                }
+            });
+
+            controller.addEventListener('selectend', () => {
+                console.log("Контролер відпущено");
+                isHolding = false;
+                targetObject = null;
             });
 
         });
