@@ -13,25 +13,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
         document.body.appendChild(renderer.domElement);
 
-        let currentMesh = null;
-
         // Додати кнопку UARButton з українською локалізацією
         document.body.appendChild(UARButton.createButton(renderer, {
             optionalFeatures: ["dom-overlay"],
             domOverlay: { root: document.body }
         }));
 
+        const raycaster = new THREE.Raycaster();
+        const rayGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, 0, -1)
+        ]);
+        const rayMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+        const rayLine = new THREE.Line(rayGeometry, rayMaterial);
+        rayLine.name = "visualRay";
+        rayLine.visible = false;
+
         // Анімаційний цикл — працює і для XR, і для не-XR режиму
         renderer.setAnimationLoop((timestamp, frame) => {
-            // Обертання кубика у XR сесії
-            if (currentMesh) {
-                currentMesh.rotation.x += 0.01;
-                currentMesh.rotation.y += 0.02;
-            }
             renderer.render(scene, camera);
         });
 
-        // Слухачі подій для створення/видалення кубика
+        //cubes = [];
+        const geometry = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.set(0, 0, -0.3);
+        scene.add(cube);
+
+
         renderer.xr.addEventListener("sessionstart", async (e) => {
             console.log("Сесію WebXR розпочато");
 
@@ -39,22 +49,26 @@ document.addEventListener("DOMContentLoaded", () => {
             const referenceSpace = await session.requestReferenceSpace('local');
             renderer.xr.setReferenceSpace(referenceSpace);
 
-            // Створити кубик тільки для XR сесії
-            const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-            const material = new THREE.MeshBasicMaterial({color: 0x00ff00});
-            currentMesh = new THREE.Mesh(geometry, material);
-            currentMesh.position.set(0, 0, -0.5);
-            scene.add(currentMesh);
+            const controller = renderer.xr.getController(0);
+            controller.add(rayLine);
+            rayLine.visible = true;
+
+            scene.add(controller);
+
+            controller.addEventListener('selectstart', () => {
+                console.log("Контролер обрано");
+
+                // Створити просту геометрію (наприклад, куб) при виборі
+                //cubes.push(cube);
+
+                cube.position.applyMatrix4(controller.matrixWorld);
+                cube.quaternion.setFromRotationMatrix(controller.matrixWorld);
+            });
+
         });
 
         renderer.xr.addEventListener("sessionend", () => {
             console.log("Сесію WebXR завершено");
-
-            // Видалити кубик зі сцени
-            if (currentMesh) {
-                scene.remove(currentMesh);
-                currentMesh = null;
-            }
         });
     }
 
