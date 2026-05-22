@@ -31,6 +31,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Анімаційний цикл — працює і для XR, і для не-XR режиму
         renderer.setAnimationLoop((timestamp, frame) => {
+            if (isHolding && targetObject) {
+                const controller = renderer.xr.getController(0);
+
+                const targetPos = new THREE.Vector3(0, 0, -grabbingDistance);
+                targetPos.applyMatrix4(controller.matrixWorld);
+
+                targetObject.position.lerp(targetPos, 0.1);
+
+                const targetQuat = new THREE.Quaternion();
+                targetQuat.setFromRotationMatrix(controller.matrixWorld);
+                targetObject.quaternion.slerp(targetQuat, 0.1);
+            }
             renderer.render(scene, camera);
         });
 
