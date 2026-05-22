@@ -74,6 +74,42 @@ npx serve .
 ```
 Then open `http://localhost:8000/weekN/test.html` for each assignment.
 
+## Development Workflow
+
+### Commands
+- **Start development server**: Use any static file server. Example:
+  ```bash
+  python3 -m http.server 8000
+  ```
+  Then visit `http://localhost:8000/index.html` or specific week pages.
+
+- **Running tests**: The project uses Playwright for end-to-end testing. Test files are located in the respective week folders (e.g., `week8/test.html` interacted with via Playwright scripts). To run Playwright tests:
+  ```bash
+  npx playwright test
+  ```
+  To run a single test file:
+  ```bash
+  npx playwright test week8/test.spec.js
+  ```
+  (Adjust the path to your test spec.)
+
+- **Linting**: No formal linting setup is currently configured. If desired, you can add ESLint with a browser-compatible configuration, but the project intentionally avoids build steps.
+
+- **Building**: There is no build step; the code runs directly in the browser via ES modules. Simply ensure the server is serving the correct MIME types for `.js` files.
+
+### Testing Patterns
+- Playwright tests are used to verify UI interactions (e.g., button clickability, AR session start/stop).
+- Example test structure can be found in existing test scripts (if any) or follow the Playwright API:
+  ```js
+  const { test, expect } = require('@playwright/test');
+  test('AR button is clickable', async ({ page }) => {
+    await page.goto('http://localhost:8000/week8/test.html');
+    await expect(page.locator('button')).toBeEnabled();
+    await page.click('button');
+    // ... additional assertions
+  });
+  ```
+
 ## Weekly Progression
 
 | Week | Focus | Key Feature |
