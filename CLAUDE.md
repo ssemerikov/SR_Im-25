@@ -17,7 +17,7 @@ WebAR educational project using **Three.js** (3D rendering) and **MindAR** (imag
 
 ## Module Resolution
 
-Week 1 uses CDN Three.js (v0.183.1) with no MindAR. Weeks 2–8 and 10 use local vendored libraries:
+Week 1 uses CDN Three.js (v0.183.1) with no MindAR. Weeks 2–8 and 10 use local vendored libraries. Weeks 13–14 use CDN Three.js v0.184.0:
 - `three` → `lib/three/three_151.module.js` (Three.js v0.151)
 - `mindar-image-three` → `lib/mindar/mindar-image-three.prod.js` (weeks 2–7)
 - `mindar-face-three` → `lib/mindar/mindar-face-three.prod.js` (weeks 8–10)
@@ -83,17 +83,15 @@ Then open `http://localhost:8000/weekN/test.html` for each assignment.
   ```
   Then visit `http://localhost:8000/index.html` or specific week pages.
 
-- **Running tests**: The project uses Playwright for end-to-end testing. Test files are located in the respective week folders (e.g., `week8/test.html` interacted with via Playwright scripts). To run Playwright tests:
+- **Running tests**: The project uses Playwright for end-to-end testing. Test specs live in `tests/`. To run all tests:
   ```bash
   npx playwright test
   ```
   To run a single test file:
   ```bash
-  npx playwright test week8/test.spec.js
+  npx playwright test tests/test-hat.spec.js
   ```
-  (Adjust the path to your test spec.)
-
-- **Linting**: No formal linting setup is currently configured. If desired, you can add ESLint with a browser-compatible configuration, but the project intentionally avoids build steps.
+  The Playwright config (`playwright.config.js`) auto-starts a dev server on port 3000, so you don't need to start one separately.
 
 - **Building**: There is no build step; the code runs directly in the browser via ES modules. Simply ensure the server is serving the correct MIME types for `.js` files.
 
@@ -126,6 +124,11 @@ Then open `http://localhost:8000/weekN/test.html` for each assignment.
 | 10 | Custom face mesh texture | `addFaceMesh()` with texture map, VR/AR toggle |
 | 11 | Native WebXR | `navigator.xr.requestSession()`, no MindAR |
 | 12 | UARButton component | Custom AR button with Ukrainian localization |
+| 13 | Controller interaction + model placement | Raycaster grab, lerp/slerp smooth movement, GLB preloading |
+| 14 | Hit-test + reticle placement | WebXR hit-test API, reticle for surface detection, tap-to-place |
+| 15 | World-tracking model placement | GLB preloading, item selection UI, touch rotation, confirm/cancel |
+| 16 | Persistent model storage | Node.js server, models.json persistence, 30s polling for new models |
+| 17 | Lighting estimation + anchors | `XRLightProbe`, `XRAnchor`, `primaryLightDirection`, persistent placement |
 
 ## Key Patterns
 
@@ -308,6 +311,88 @@ const session = await navigator.xr.requestSession("immersive-ar", {
 renderer.xr.enabled = true;
 await renderer.xr.setSession(session);
 ```
+
+### Controller Raycasting + Grabbing (week 13)
+Raycaster-based object picking with the XR controller, using lerp/slerp for smooth movement:
+```js
+const controller = renderer.xr.getController(0);
+controller.add(rayLine);  // visual ray indicator
+
+controller.addEventListener('selectstart', () => {
+    const tempMatrix = new THREE.Matrix4();
+    tempMatrix.identity().extractRotation(controller.matrixWorld);
+    raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+    raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+    const intersects = raycaster.intersectObjects([targetMesh]);
+    if (intersects.length > 0) {
+        isHolding = true;
+        targetObject = intersects[0].object;
+    }
+});
+
+controller.addEventListener('selectend', () => {
+    isHolding = false;
+    targetObject = null;
+});
+
+// In animation loop — smooth follow with lerp/slerp:
+if (isHolding && targetObject) {
+    const targetPos = new THREE.Vector3(0, 0, -grabbingDistance);
+    targetPos.applyMatrix4(controller.matrixWorld);
+    targetObject.position.lerp(targetPos, 0.1);
+    const targetQuat = new THREE.Quaternion();
+    targetQuat.setFromRotationMatrix(controller.matrixWorld);
+    targetObject.quaternion.slerp(targetQuat, 0.1);
+}
+```
+
+### GLB Model Preloading + Cloning (week 13)
+Preload multiple GLB models at startup, then clone on demand for instant placement:
+```js
+const modelSpecs = [
+    { name: "teacup", glbPath: "../assets/teacup.glb", scale: { x: 0.5, y: 0.5, z: 0.5 } },
+];
+const preloadedModels = await Promise.all(modelSpecs.map(spec => {
+    return new Promise((resolve) => {
+        loader.load(spec.glbPath, (gltf) => resolve({ scene: gltf.scene, scale: spec.scale }));
+    });
+}));
+
+function getRandomModelClone() {
+    const { scene, scale } = preloadedModels[Math.floor(Math.random() * preloadedModels.length)];
+    const clone = scene.clone(true);
+    clone.scale.set(scale.x, scale.y, scale.z);
+    return clone;
+}
+```
+
+### Hit-Test + Reticle Placement (week 14)
+Uses WebXR hit-test API to detect real-world surfaces and place a reticle:
+```js
+const session = renderer.xr.getSession();
+const viewerReferenceSpace = await session.requestReferenceSpace("viewer");
+const hitTestSource = await session.requestHitTestSource({ space: viewerReferenceSpace });
+
+renderer.setAnimationLoop((timestamp, frame) => {
+    const hitTestResults = frame.getHitTestResults(hitTestSource);
+    if (hitTestResults.length > 0) {
+        const hit = hitTestResults[0];
+        const hitPose = hit.getPose(referenceSpace);
+        reticle.visible = true;
+        reticle.matrix.fromArray(hitPose.transform.matrix);
+    } else {
+        reticle.visible = false;
+    }
+});
+
+// On controller select, place object at reticle position:
+controller.addEventListener("select", () => {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.setFromMatrixPosition(reticle.matrix);
+    scene.add(mesh);
+});
+```
+Requires `requiredFeatures: ["hit-test"]` in the UARButton session config.
 
 ## Language
 

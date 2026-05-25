@@ -1,26 +1,23 @@
 {
   "name": "sr_im-25",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "lib": "lib"
-  },
+  "description": "WebAR educational project — Three.js + MindAR weekly assignments",
+  "private": true,
+  "type": "commonjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "python3 -m http.server 8000",
+    "serve": "npx serve -l 3000 .",
+    "week16": "node week16/server.js",
+    "test": "npx playwright test",
+    "test:headed": "npx playwright test --headed"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ssemerikov/SR_Im-25.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["webar", "threejs", "mindar", "webxr"],
+  "author": "Serhiy Semerikov",
   "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/ssemerikov/SR_Im-25/issues"
-  },
-  "homepage": "https://github.com/ssemerikov/SR_Im-25#readme",
   "dependencies": {
     "@playwright/test": "^1.59.1",
     "playwright": "^1.59.1"
